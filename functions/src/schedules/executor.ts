@@ -77,7 +77,7 @@ export async function executeScheduleAction(schedule: Schedule): Promise<{
       error: errors.length > 0 ? errors.join("; ") : undefined,
     };
   } catch (error: any) {
-    console.error(`Schedule execution failed:`, error);
+    console.error("Schedule execution failed:", error);
     return {
       success: false,
       message: "Execution failed",
@@ -94,57 +94,57 @@ function buildUpdateData(schedule: Schedule, adGroup: AdGroup): any {
   const updateData: any = {};
 
   switch (schedule.actionType) {
-    case "status":
-      if (schedule.statusValue) {
-        updateData.status = schedule.statusValue;
+  case "status":
+    if (schedule.statusValue) {
+      updateData.status = schedule.statusValue;
+    }
+    break;
+
+  case "cpc":
+    if (adGroup.bidding?.maxCpc) {
+      const currentAmount = parseFloat(adGroup.bidding.maxCpc.amount);
+      const newAmount = calculateNewAmount(
+        currentAmount,
+        schedule.changeValue,
+        schedule.changeMode
+      );
+
+      updateData.bidding = {
+        maxCpc: {
+          amount: newAmount.toFixed(2),
+          currency: adGroup.bidding.maxCpc.currency,
+        },
+      };
+
+      // Include budget if it exists (Allegro API requirement)
+      if (adGroup.budget) {
+        updateData.budget = adGroup.budget;
       }
-      break;
+    }
+    break;
 
-    case "cpc":
-      if (adGroup.bidding?.maxCpc) {
-        const currentAmount = parseFloat(adGroup.bidding.maxCpc.amount);
-        const newAmount = calculateNewAmount(
-          currentAmount,
-          schedule.changeValue,
-          schedule.changeMode
-        );
+  case "budget":
+    if (adGroup.budget?.daily) {
+      const currentAmount = parseFloat(adGroup.budget.daily.amount);
+      const newAmount = calculateNewAmount(
+        currentAmount,
+        schedule.changeValue,
+        schedule.changeMode
+      );
 
-        updateData.bidding = {
-          maxCpc: {
-            amount: newAmount.toFixed(2),
-            currency: adGroup.bidding.maxCpc.currency,
-          },
-        };
+      updateData.budget = {
+        daily: {
+          amount: newAmount.toFixed(2),
+          currency: adGroup.budget.daily.currency,
+        },
+      };
 
-        // Include budget if it exists (Allegro API requirement)
-        if (adGroup.budget) {
-          updateData.budget = adGroup.budget;
-        }
+      // Include total budget if it exists
+      if (adGroup.budget.total) {
+        updateData.budget.total = adGroup.budget.total;
       }
-      break;
-
-    case "budget":
-      if (adGroup.budget?.daily) {
-        const currentAmount = parseFloat(adGroup.budget.daily.amount);
-        const newAmount = calculateNewAmount(
-          currentAmount,
-          schedule.changeValue,
-          schedule.changeMode
-        );
-
-        updateData.budget = {
-          daily: {
-            amount: newAmount.toFixed(2),
-            currency: adGroup.budget.daily.currency,
-          },
-        };
-
-        // Include total budget if it exists
-        if (adGroup.budget.total) {
-          updateData.budget.total = adGroup.budget.total;
-        }
-      }
-      break;
+    }
+    break;
   }
 
   return updateData;

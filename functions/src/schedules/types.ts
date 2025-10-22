@@ -4,22 +4,22 @@ export interface Schedule {
   adsClientId: string // ID klienta agencyjnego
   name: string // "Kampania Wieczorna"
   isActive: boolean
-  
+
   // Czas
-  timeMode: 'allDay' | 'specific'
+  timeMode: "allDay" | "specific"
   startTime?: string // "18:00"
   endTime?: string // "22:00"
   daysOfWeek: number[] // [1,2,3,4,5] = Pon-Pią, 0=Niedziela
-  
+
   // Akcje
-  actionType: 'cpc' | 'budget' | 'status'
-  changeMode: 'percentage' | 'amount' // dla CPC/budżetu
+  actionType: "cpc" | "budget" | "status"
+  changeMode: "percentage" | "amount" // dla CPC/budżetu
   changeValue: number // np. 20 (dla 20% lub 20 PLN)
-  statusValue?: 'ACTIVE' | 'PAUSED' // dla zmiany statusu
-  
+  statusValue?: "ACTIVE" | "PAUSED" // dla zmiany statusu
+
   // Grupy reklam (puste = wszystkie grupy)
   adGroupIds: string[]
-  
+
   // Metadata
   createdAt: FirebaseFirestore.Timestamp
   updatedAt: FirebaseFirestore.Timestamp
@@ -39,7 +39,7 @@ export interface AdGroup {
   id: string
   name: string
   campaignId: string
-  status: 'ACTIVE' | 'PAUSED'
+  status: "ACTIVE" | "PAUSED"
   bidding?: {
     maxCpc?: {
       amount: string

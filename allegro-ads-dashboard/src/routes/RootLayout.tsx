@@ -15,6 +15,9 @@ export function RootLayout() {
           <NavLink to="/allegro-ads" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
             Allegro Ads
           </NavLink>
+          <NavLink to="/schedules" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
+            Harmonogramy
+          </NavLink>
           <NavLink to="/integrations" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
             Integracje
           </NavLink>
