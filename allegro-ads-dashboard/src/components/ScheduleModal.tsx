@@ -132,12 +132,15 @@ export function ScheduleModal({ schedule, accountId, onClose, onSave }: Schedule
     
     setLoading(true)
     try {
-      const statusArray = ['ACTIVE', 'PAUSED']
-      const data = await getAdGroups(accountId, selectedClient, 'allegro-pl', statusArray.join(','))
+      const data = await getAdGroups(
+        accountId, 
+        selectedClient, 
+        selectedCampaign,  // campaignId
+        'allegro-pl',      // marketplaceId
+        ['ACTIVE', 'PAUSED'] // status array
+      )
       
-      // Filter by selected campaign
-      const filtered = data.adGroups.filter((ag: AdGroup) => ag.campaignId === selectedCampaign)
-      setAdGroups(filtered)
+      setAdGroups(data.adGroups)
     } catch (err) {
       console.error('Failed to load ad groups:', err)
     } finally {
