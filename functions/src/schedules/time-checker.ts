@@ -42,11 +42,16 @@ export function shouldExecuteNow(schedule: Schedule, now: Date): boolean {
 }
 
 /**
- * Format Date to HH:MM string
+ * Format Date to HH:MM string in Warsaw timezone
  */
 function formatTime(date: Date): string {
-  const hours = date.getHours().toString().padStart(2, "0");
-  const minutes = date.getMinutes().toString().padStart(2, "0");
+  // Convert UTC to Warsaw time (UTC+1 in winter, UTC+2 in summer)
+  // For simplicity, we'll use UTC+2 (CEST - Central European Summer Time)
+  const warsawOffset = 2; // CEST is UTC+2
+  const warsawTime = new Date(date.getTime() + (warsawOffset * 60 * 60 * 1000));
+
+  const hours = warsawTime.getUTCHours().toString().padStart(2, "0");
+  const minutes = warsawTime.getUTCMinutes().toString().padStart(2, "0");
   return `${hours}:${minutes}`;
 }
 

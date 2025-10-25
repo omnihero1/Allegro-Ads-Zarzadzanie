@@ -3,8 +3,7 @@ import {
   createSchedule, 
   updateSchedule,
   type Schedule,
-  type CreateScheduleData,
-  type UpdateScheduleData
+  type CreateScheduleData
 } from '../services/schedules'
 import { 
   getCampaigns, 
@@ -213,18 +212,25 @@ export function ScheduleModal({ schedule, accountId, onClose, onSave }: Schedule
     setError(null)
     
     try {
-      const scheduleData: CreateScheduleData | UpdateScheduleData = {
+      const scheduleData: any = {
         name: name.trim(),
         isActive,
         timeMode,
-        startTime: timeMode === 'specific' ? startTime : undefined,
-        endTime: timeMode === 'specific' ? endTime : undefined,
         daysOfWeek,
         actionType,
         changeMode,
         changeValue,
-        statusValue: actionType === 'status' ? statusValue : undefined,
         adGroupIds: selectedAdGroupIds
+      }
+      
+      // Only add fields if they have values
+      if (timeMode === 'specific') {
+        scheduleData.startTime = startTime
+        scheduleData.endTime = endTime
+      }
+      
+      if (actionType === 'status') {
+        scheduleData.statusValue = statusValue
       }
       
       if (schedule) {

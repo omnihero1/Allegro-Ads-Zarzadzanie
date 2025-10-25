@@ -348,3 +348,79 @@ export async function updateAdGroup(
   return response.data
 }
 
+// Agency API interfaces
+export interface AgencyClient {
+  id: string
+  name: string
+}
+
+export interface GraphicAdStatistics {
+  campaign: {
+    id: string
+    name: string
+  }
+  adGroup: {
+    id: string
+    name: string
+  }
+  ad: {
+    id: string
+    name: string
+  }
+  dayData: Array<{
+    day: string
+    data: {
+      interest: number
+      clicks: number
+      totalCost: string
+      views: number
+      ctr: string
+      totalAttributionCount: number
+      totalAttributionValue: string
+      effectiveCpm?: string
+      rateOfReturn: string
+      uniqueReach?: number
+      attributedToCoreValue?: string
+    }
+  }>
+}
+
+export interface AgencyStatistics {
+  sponsoredOffers: Array<any>
+  graphicAds: GraphicAdStatistics[]
+}
+
+// Get agency clients
+export async function getAgencyClients(accountId: string) {
+  console.log('Getting agency clients for account:', accountId)
+  
+  const response = await api.get('/ads/agency-clients', {
+    params: { accountId }
+  })
+  
+  console.log('Agency clients response:', response.data)
+  return response.data
+}
+
+// Get agency statistics (graphic ads + branded accounts)
+export async function getAgencyStatistics(
+  accountId: string, 
+  clientId: string, 
+  dateFrom?: string, 
+  dateTo?: string
+) {
+  console.log('Getting agency statistics:', { accountId, clientId, dateFrom, dateTo })
+  
+  const response = await api.get('/ads/agency-statistics', {
+    params: { 
+      accountId, 
+      clientId,
+      dateFrom,
+      dateTo
+    }
+  })
+  
+  console.log('Agency statistics response:', response.data)
+  return response.data as AgencyStatistics
+}
+

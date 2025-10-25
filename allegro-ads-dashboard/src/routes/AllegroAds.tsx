@@ -9,11 +9,15 @@ import {
   updateCampaign,
   updateAdGroup,
   createAdGroup,
+  getAgencyClients,
+  getAgencyStatistics,
   type AdsClient,
   type Campaign,
   type AdGroup,
   type Offer,
-  type AdGroupStats as AdGroupStatsType
+  type AdGroupStats as AdGroupStatsType,
+  type AgencyClient,
+  type AgencyStatistics
 } from '../services/allegroCampaigns'
 import './AllegroAds.css'
 
@@ -42,6 +46,10 @@ export function AllegroAds() {
   const [adGroups, setAdGroups] = useState<AdGroup[]>([])
   const [offers, setOffers] = useState<Offer[]>([])
   const [stats, setStats] = useState<Map<string, AdGroupStatsType>>(new Map())
+  
+  // Agency API data (graphic ads + branded accounts)
+  const [, setAgencyClients] = useState<AgencyClient[]>([])
+  const [agencyStats, setAgencyStats] = useState<Map<string, AgencyStatistics>>(new Map())
   
   const [selectedCampaign, setSelectedCampaign] = useState<string>('')
   const [selectedAdGroup, setSelectedAdGroup] = useState<string>('')
@@ -262,6 +270,52 @@ export function AllegroAds() {
       } catch (offersErr: any) {
         console.error('Failed to load offers (non-critical):', offersErr?.response?.data || offersErr?.message)
         setOffers([]) // Continue without offers
+      }
+
+      // Load agency statistics (graphic ads + branded accounts) - non-critical
+      // Only load if we have a selected client
+      if (selectedClient) {
+        try {
+          console.log('Loading agency clients and statistics...')
+          const agencyClientsData = await getAgencyClients(selectedAccount)
+          const clients = agencyClientsData.clients || []
+          setAgencyClients(clients)
+          
+          // Find the current ads client name
+          const currentAdsClient = adsClients.find((c: AdsClient) => c.id === selectedClient)
+          if (currentAdsClient) {
+            console.log(`Looking for agency client matching: ${currentAdsClient.name}`)
+            
+            // Find matching agency client by name
+            const matchingAgencyClient = clients.find((c: AgencyClient) => c.name === currentAdsClient.name)
+            
+            if (matchingAgencyClient) {
+              console.log(`Found matching agency client: ${matchingAgencyClient.name} (${matchingAgencyClient.id})`)
+              
+              // Load statistics only for this client
+              try {
+                const clientStats = await getAgencyStatistics(selectedAccount, matchingAgencyClient.id, dateFrom, dateTo)
+                const agencyStatsMap = new Map<string, AgencyStatistics>()
+                agencyStatsMap.set(matchingAgencyClient.id, clientStats)
+                setAgencyStats(agencyStatsMap)
+                console.log(`Loaded agency stats for ${matchingAgencyClient.name}`)
+              } catch (statsErr: any) {
+                console.warn(`Failed to load agency stats for ${matchingAgencyClient.name}:`, statsErr?.message)
+                setAgencyStats(new Map())
+              }
+            } else {
+              console.log(`No matching agency client found for ${currentAdsClient.name}`)
+              setAgencyStats(new Map())
+            }
+          }
+        } catch (agencyErr: any) {
+          console.error('Failed to load agency data (non-critical):', agencyErr?.message)
+          setAgencyClients([])
+          setAgencyStats(new Map())
+        }
+      } else {
+        setAgencyClients([])
+        setAgencyStats(new Map())
       }
     } catch (err: any) {
       console.error('Failed to load data:', err)
@@ -1488,6 +1542,226 @@ export function AllegroAds() {
           <p>Brak kampanii dla wybranego konta. Kliknij "Załaduj dane" aby odświeżyć.</p>
         </div>
       )}
+
+      {/* Graphic Ads Section */}
+      {!loading && agencyStats.size > 0 && (() => {
+        const clientStats = Array.from(agencyStats.values())[0]
+        const graphicAds = clientStats?.graphicAds || []
+        
+        if (graphicAds.length === 0) {
+          return null
+        }
+        
+        // Build campaign, ad group, and ad structures with aggregated stats
+        const campaignsMap = new Map<string, {
+          id: string
+          name: string
+          stats: { views: number; clicks: number; cost: number; revenue: number; reach: number }
+        }>()
+        
+        const adGroupsMap = new Map<string, {
+          id: string
+          campaignId: string
+          name: string
+          stats: { views: number; clicks: number; cost: number; revenue: number; reach: number }
+        }>()
+        
+        const adsArray = graphicAds.map(ad => {
+          const totalStats = ad.dayData.reduce((acc, day) => {
+            const cost = parseFloat(day.data.totalCost) || 0
+            const revenue = parseFloat(day.data.totalAttributionValue) || 0
+            
+            return {
+              views: acc.views + (day.data.views || 0),
+              clicks: acc.clicks + (day.data.clicks || 0),
+              cost: acc.cost + cost,
+              revenue: acc.revenue + revenue,
+              reach: acc.reach + (day.data.uniqueReach || 0)
+            }
+          }, { views: 0, clicks: 0, cost: 0, revenue: 0, reach: 0 })
+          
+          // Update campaign stats
+          if (!campaignsMap.has(ad.campaign.id)) {
+            campaignsMap.set(ad.campaign.id, {
+              id: ad.campaign.id,
+              name: ad.campaign.name,
+              stats: { views: 0, clicks: 0, cost: 0, revenue: 0, reach: 0 }
+            })
+          }
+          const campaign = campaignsMap.get(ad.campaign.id)!
+          campaign.stats.views += totalStats.views
+          campaign.stats.clicks += totalStats.clicks
+          campaign.stats.cost += totalStats.cost
+          campaign.stats.revenue += totalStats.revenue
+          campaign.stats.reach += totalStats.reach
+          
+          // Update ad group stats
+          if (!adGroupsMap.has(ad.adGroup.id)) {
+            adGroupsMap.set(ad.adGroup.id, {
+              id: ad.adGroup.id,
+              campaignId: ad.campaign.id,
+              name: ad.adGroup.name,
+              stats: { views: 0, clicks: 0, cost: 0, revenue: 0, reach: 0 }
+            })
+          }
+          const adGroup = adGroupsMap.get(ad.adGroup.id)!
+          adGroup.stats.views += totalStats.views
+          adGroup.stats.clicks += totalStats.clicks
+          adGroup.stats.cost += totalStats.cost
+          adGroup.stats.revenue += totalStats.revenue
+          adGroup.stats.reach += totalStats.reach
+          
+          return {
+            ...ad,
+            campaignName: ad.campaign.name,
+            adGroupName: ad.adGroup.name,
+            stats: totalStats
+          }
+        })
+        
+        const graphicCampaigns = Array.from(campaignsMap.values())
+        const graphicAdGroups = Array.from(adGroupsMap.values())
+        
+        return (
+          <>
+            {/* Graphic Campaigns Table */}
+            <div className="section">
+              <h2>Kampanie Graficzne (Display)</h2>
+              <p style={{ color: '#666', fontSize: 14, marginBottom: 15 }}>
+                Dane z Advertising Agencies API - tylko odczyt
+              </p>
+              
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Nazwa kampanii</th>
+                    <th>Wyświetlenia</th>
+                    <th>Zasięg</th>
+                    <th>Kliknięcia</th>
+                    <th>CTR</th>
+                    <th>Koszt</th>
+                    <th>CPM</th>
+                    <th>Przychód</th>
+                    <th>ROAS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {graphicCampaigns.map(campaign => {
+                    const ctr = campaign.stats.views > 0 ? (campaign.stats.clicks / campaign.stats.views * 100).toFixed(2) : '0.00'
+                    const cpm = campaign.stats.views > 0 ? (campaign.stats.cost / campaign.stats.views * 1000).toFixed(2) : '0.00'
+                    const roas = campaign.stats.cost > 0 ? (campaign.stats.revenue / campaign.stats.cost * 100).toFixed(2) : '0.00'
+                    
+                    return (
+                      <tr key={campaign.id}>
+                        <td><strong>{campaign.name}</strong></td>
+                        <td>{campaign.stats.views.toLocaleString()}</td>
+                        <td>{campaign.stats.reach.toLocaleString()}</td>
+                        <td>{campaign.stats.clicks.toLocaleString()}</td>
+                        <td>{ctr}%</td>
+                        <td>{campaign.stats.cost.toFixed(2)} zł</td>
+                        <td>{cpm} zł</td>
+                        <td>{campaign.stats.revenue.toFixed(2)} zł</td>
+                        <td>{roas}%</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Graphic Ad Groups Table */}
+            <div className="section">
+              <h2>Grupy Reklamowe (Display)</h2>
+              
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Kampania</th>
+                    <th>Grupa reklamowa</th>
+                    <th>Wyświetlenia</th>
+                    <th>Zasięg</th>
+                    <th>Kliknięcia</th>
+                    <th>CTR</th>
+                    <th>Koszt</th>
+                    <th>CPM</th>
+                    <th>Przychód</th>
+                    <th>ROAS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {graphicAdGroups.map(adGroup => {
+                    const campaign = campaignsMap.get(adGroup.campaignId)
+                    const ctr = adGroup.stats.views > 0 ? (adGroup.stats.clicks / adGroup.stats.views * 100).toFixed(2) : '0.00'
+                    const cpm = adGroup.stats.views > 0 ? (adGroup.stats.cost / adGroup.stats.views * 1000).toFixed(2) : '0.00'
+                    const roas = adGroup.stats.cost > 0 ? (adGroup.stats.revenue / adGroup.stats.cost * 100).toFixed(2) : '0.00'
+                    
+                    return (
+                      <tr key={adGroup.id}>
+                        <td>{campaign?.name}</td>
+                        <td><strong>{adGroup.name}</strong></td>
+                        <td>{adGroup.stats.views.toLocaleString()}</td>
+                        <td>{adGroup.stats.reach.toLocaleString()}</td>
+                        <td>{adGroup.stats.clicks.toLocaleString()}</td>
+                        <td>{ctr}%</td>
+                        <td>{adGroup.stats.cost.toFixed(2)} zł</td>
+                        <td>{cpm} zł</td>
+                        <td>{adGroup.stats.revenue.toFixed(2)} zł</td>
+                        <td>{roas}%</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Graphic Ads Table */}
+            <div className="section">
+              <h2>Reklamy (Display)</h2>
+              
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Kampania</th>
+                    <th>Grupa</th>
+                    <th>Reklama</th>
+                    <th>Wyświetlenia</th>
+                    <th>Zasięg</th>
+                    <th>Kliknięcia</th>
+                    <th>CTR</th>
+                    <th>Koszt</th>
+                    <th>CPM</th>
+                    <th>Przychód</th>
+                    <th>ROAS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adsArray.map(ad => {
+                    const ctr = ad.stats.views > 0 ? (ad.stats.clicks / ad.stats.views * 100).toFixed(2) : '0.00'
+                    const cpm = ad.stats.views > 0 ? (ad.stats.cost / ad.stats.views * 1000).toFixed(2) : '0.00'
+                    const roas = ad.stats.cost > 0 ? (ad.stats.revenue / ad.stats.cost * 100).toFixed(2) : '0.00'
+                    
+                    return (
+                      <tr key={ad.ad.id}>
+                        <td>{ad.campaignName}</td>
+                        <td>{ad.adGroupName}</td>
+                        <td><strong>{ad.ad.name}</strong></td>
+                        <td>{ad.stats.views.toLocaleString()}</td>
+                        <td>{ad.stats.reach.toLocaleString()}</td>
+                        <td>{ad.stats.clicks.toLocaleString()}</td>
+                        <td>{ctr}%</td>
+                        <td>{ad.stats.cost.toFixed(2)} zł</td>
+                        <td>{cpm} zł</td>
+                        <td>{ad.stats.revenue.toFixed(2)} zł</td>
+                        <td>{roas}%</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )
+      })()}
 
       {/* Budget Edit Modal */}
       {editingBudget && (

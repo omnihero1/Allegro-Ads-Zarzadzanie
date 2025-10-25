@@ -64,15 +64,19 @@ export const scheduleExecutor = onSchedule({
           const result = await executeScheduleAction(schedule);
 
           // Update schedule with execution results
+          const now = admin.firestore.Timestamp.now();
+          const logEntry: any = {
+            timestamp: now,
+            success: result.success,
+            message: result.message,
+            affectedAdGroupIds: result.affectedAdGroupIds,
+          };
+          if (result.error) {
+            logEntry.error = result.error;
+          }
           await doc.ref.update({
-            lastExecuted: admin.firestore.FieldValue.serverTimestamp(),
-            executionLog: admin.firestore.FieldValue.arrayUnion({
-              timestamp: admin.firestore.FieldValue.serverTimestamp(),
-              success: result.success,
-              message: result.message,
-              affectedAdGroupIds: result.affectedAdGroupIds,
-              error: result.error,
-            }),
+            lastExecuted: now,
+            executionLog: admin.firestore.FieldValue.arrayUnion(logEntry),
           });
 
           executed++;
@@ -81,9 +85,10 @@ export const scheduleExecutor = onSchedule({
           console.error(`Failed to execute schedule ${schedule.id}:`, error);
 
           // Log the error
+          const now = admin.firestore.Timestamp.now();
           await doc.ref.update({
             executionLog: admin.firestore.FieldValue.arrayUnion({
-              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              timestamp: now,
               success: false,
               message: "Execution failed",
               error: error?.message || "Unknown error",

@@ -589,3 +589,82 @@ adsRouter.get('/offers', async (req, res) => {
   }
 })
 
+// Get agency clients from Advertising Agencies API
+adsRouter.get('/agency-clients', async (req, res) => {
+  try {
+    const { accountId } = req.query
+    
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId is required' })
+    }
+    
+    const { accessToken } = await getAccountToken(accountId as string)
+    
+    const response = await axios.get(
+      `${ALLEGRO_API_URL}/advertising-agencies/clients`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.allegro.public.v1+json'
+        }
+      }
+    )
+    
+    res.json(response.data)
+  } catch (error: any) {
+    console.error('Failed to fetch agency clients:', error?.response?.data || error?.message)
+    res.status(error?.response?.status || 500).json({
+      error: 'Failed to fetch agency clients',
+      details: error?.response?.data || error?.message
+    })
+  }
+})
+
+// Get agency client statistics (graphic ads & branded accounts)
+adsRouter.get('/agency-statistics', async (req, res) => {
+  try {
+    const { accountId, clientId, dateFrom, dateTo } = req.query
+    
+    if (!accountId || !clientId) {
+      return res.status(400).json({ error: 'accountId and clientId are required' })
+    }
+    
+    const { accessToken } = await getAccountToken(accountId as string)
+    
+    // Default to last 7 days if dates not provided (API limit)
+    const now = new Date()
+    const defaultDateTo = new Date(now)
+    defaultDateTo.setDate(defaultDateTo.getDate() - 1) // Yesterday
+    const defaultDateFrom = new Date(defaultDateTo)
+    defaultDateFrom.setDate(defaultDateFrom.getDate() - 6) // 6 days before yesterday (7 days total)
+    
+    const gte = dateFrom || defaultDateFrom.toISOString().split('T')[0]
+    const lte = dateTo || defaultDateTo.toISOString().split('T')[0]
+    
+    console.log(`Fetching agency statistics for client ${clientId}: ${gte} to ${lte}`)
+    
+    const response = await axios.get(
+      `${ALLEGRO_API_URL}/advertising-agencies/clients/${clientId}/statistics`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.allegro.public.v1+json'
+        },
+        params: {
+          'types': ['SPONSORED_OFFER', 'GRAPHIC_AD'],
+          'statistics.gte': gte,
+          'statistics.lte': lte
+        }
+      }
+    )
+    
+    res.json(response.data)
+  } catch (error: any) {
+    console.error('Failed to fetch agency statistics:', error?.response?.data || error?.message)
+    res.status(error?.response?.status || 500).json({
+      error: 'Failed to fetch agency statistics',
+      details: error?.response?.data || error?.message
+    })
+  }
+})
+
