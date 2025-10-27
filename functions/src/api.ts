@@ -164,14 +164,14 @@ app.post("/auth/allegro/device/poll", async (req, res) => {
   }
 });
 
-// Export as Firebase Function
+// Export as Firebase Function - DISABLE built-in CORS, we handle it ourselves
 export const api = functions.https.onRequest(
   {
     region: "us-central1",
-    cors: allowedOrigins,
     memory: "512MiB",
     timeoutSeconds: 60,
     secrets: [allegroClientId, allegroClientSecret],
+    // DO NOT set cors here - it conflicts with our custom middleware
   },
   app
 );
