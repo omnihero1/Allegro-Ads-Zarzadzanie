@@ -161,7 +161,7 @@ export function Dashboard() {
               )}
               {accounts.map(account => (
                 <option key={account.id} value={account.id}>
-                  {account.name || account.email}
+                  {account.name} ({account.email})
                 </option>
               ))}
             </select>
