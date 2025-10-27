@@ -17,6 +17,9 @@ const allegroClientSecret = defineSecret("ALLEGRO_CLIENT_SECRET");
 // Initialize Firebase Admin
 admin.initializeApp();
 
+// Export API function
+export {api} from "./api";
+
 /**
  * Schedule Executor - runs every 5 minutes
  * Checks active schedules and executes actions if time matches
