@@ -47,6 +47,136 @@ app.get("/health", (_req, res) => {
   res.json({ok: true, timestamp: new Date().toISOString()});
 });
 
+// Helper to get account and access token
+async function getAccountToken(accountId: string) {
+  const accountDoc = await admin.firestore()
+    .collection("allegroAccounts")
+    .doc(accountId)
+    .get();
+
+  if (!accountDoc.exists) {
+    throw new Error("Account not found");
+  }
+
+  const accountData = accountDoc.data();
+  if (!accountData?.tokens?.access_token) {
+    throw new Error("No access token found");
+  }
+
+  return {
+    account: accountData,
+    accessToken: accountData.tokens.access_token,
+  };
+}
+
+// Get agency clients
+app.get("/ads/clients", async (req, res) => {
+  try {
+    const {accountId, status = "ACTIVE"} = req.query;
+
+    if (!accountId) {
+      res.status(400).json({error: "accountId is required"});
+      return;
+    }
+
+    const {accessToken} = await getAccountToken(accountId as string);
+
+    const statusArray = (status as string).split(",");
+
+    // Fetch all clients using pagination
+    const allClients: unknown[] = [];
+    let offset = 0;
+    const limit = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await axios.get(
+        "https://api.allegro.pl/ads/clients",
+        {
+          params: {
+            status: statusArray,
+            limit,
+            offset,
+          },
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Accept": "application/vnd.allegro.beta.v1+json",
+          },
+        }
+      );
+
+      const clients = response.data.clients || [];
+      const totalCount = response.data.totalCount || 0;
+
+      allClients.push(...clients);
+
+      offset += clients.length;
+      hasMore = offset < totalCount && clients.length > 0;
+    }
+
+    res.json({
+      clients: allClients,
+      count: allClients.length,
+      totalCount: allClients.length,
+    });
+  } catch (error: unknown) {
+    console.error("Error fetching clients:", error);
+    const errorData = axios.isAxiosError(error) ? error.response?.data : null;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({
+      error: "Failed to fetch clients",
+      details: errorData || errorMessage,
+    });
+  }
+});
+
+// Get ad groups
+app.get("/ads/adgroups", async (req, res) => {
+  try {
+    const {accountId, adsClientId, campaignId, status = "ACTIVE"} = req.query;
+
+    if (!accountId || !adsClientId) {
+      res.status(400).json({error: "accountId and adsClientId are required"});
+      return;
+    }
+
+    const {accessToken} = await getAccountToken(accountId as string);
+
+    const statusArray = (status as string).split(",");
+
+    const params: Record<string, unknown> = {
+      status: statusArray,
+      limit: 1000,
+      offset: 0,
+    };
+
+    if (campaignId) {
+      params.campaignId = campaignId;
+    }
+
+    const response = await axios.get(
+      `https://api.allegro.pl/ads/clients/${adsClientId}/adgroups`,
+      {
+        params,
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Accept": "application/vnd.allegro.public.v1+json",
+        },
+      }
+    );
+
+    res.json(response.data);
+  } catch (error: unknown) {
+    console.error("Error fetching ad groups:", error);
+    const errorData = axios.isAxiosError(error) ? error.response?.data : null;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({
+      error: "Failed to fetch ad groups",
+      details: errorData || errorMessage,
+    });
+  }
+});
+
 // Get accounts from Firestore
 app.get("/auth/allegro/accounts", async (_req, res) => {
   try {
