@@ -35,6 +35,11 @@ export interface Schedule {
   // Ad Groups
   adGroupIds: string[]
   
+  // Restore functionality
+  restoreAfterEnd?: boolean
+  savedValues?: { [adGroupId: string]: { cpc?: string; budget?: string; status?: string } }
+  lastRestored?: Date
+  
   // Metadata
   createdAt: Date
   updatedAt: Date

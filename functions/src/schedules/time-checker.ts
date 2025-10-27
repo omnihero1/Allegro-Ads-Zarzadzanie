@@ -27,13 +27,38 @@ export function shouldExecuteNow(schedule: Schedule, now: Date): boolean {
     }
   }
 
-  // Check if not executed in last 5 minutes (avoid duplicate executions)
-  if (schedule.lastExecuted) {
-    const lastExecutedTime = schedule.lastExecuted.toMillis();
-    const diff = now.getTime() - lastExecutedTime;
-    const fiveMinutes = 5 * 60 * 1000;
+  // Check if already executed today in this time window
+  if (schedule.lastExecuted && schedule.timeMode === "specific" &&
+      schedule.startTime && schedule.endTime) {
+    const lastExecutedTime = new Date(schedule.lastExecuted.toMillis());
+    const lastExecutedDay = lastExecutedTime.toDateString();
+    const todayDay = now.toDateString();
 
-    if (diff < fiveMinutes) {
+    // If executed today
+    if (lastExecutedDay === todayDay) {
+      // Check if it was in the same time window (startTime - endTime)
+      const lastExecutedTimeStr = formatTime(lastExecutedTime);
+
+      if (lastExecutedTimeStr >= schedule.startTime &&
+          lastExecutedTimeStr <= schedule.endTime) {
+        // Already executed in this time window today
+        console.log(
+          `Schedule ${schedule.name} already executed today at ${lastExecutedTimeStr} ` +
+          `(window: ${schedule.startTime}-${schedule.endTime})`
+        );
+        return false;
+      }
+    }
+  }
+
+  // For allDay mode, prevent execution more than once per day
+  if (schedule.lastExecuted && schedule.timeMode === "allDay") {
+    const lastExecutedTime = new Date(schedule.lastExecuted.toMillis());
+    const lastExecutedDay = lastExecutedTime.toDateString();
+    const todayDay = now.toDateString();
+
+    if (lastExecutedDay === todayDay) {
+      console.log(`Schedule ${schedule.name} already executed today (allDay mode)`);
       return false;
     }
   }
@@ -45,14 +70,22 @@ export function shouldExecuteNow(schedule: Schedule, now: Date): boolean {
  * Format Date to HH:MM string in Warsaw timezone
  */
 function formatTime(date: Date): string {
-  // Convert UTC to Warsaw time (UTC+1 in winter, UTC+2 in summer)
-  // For simplicity, we'll use UTC+2 (CEST - Central European Summer Time)
-  const warsawOffset = 2; // CEST is UTC+2
-  const warsawTime = new Date(date.getTime() + (warsawOffset * 60 * 60 * 1000));
+  // Use proper timezone conversion with Intl API
+  const timeStr = date.toLocaleString("en-US", {
+    timeZone: "Europe/Warsaw",
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
-  const hours = warsawTime.getUTCHours().toString().padStart(2, "0");
-  const minutes = warsawTime.getUTCMinutes().toString().padStart(2, "0");
-  return `${hours}:${minutes}`;
+  // Extract HH:MM from the formatted string
+  const match = timeStr.match(/(\d{2}):(\d{2})/);
+  if (match) {
+    return `${match[1]}:${match[2]}`;
+  }
+
+  // Fallback (should never happen)
+  return "00:00";
 }
 
 /**

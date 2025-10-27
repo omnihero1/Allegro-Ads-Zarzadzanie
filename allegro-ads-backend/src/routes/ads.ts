@@ -668,3 +668,241 @@ adsRouter.get('/agency-statistics', async (req, res) => {
   }
 })
 
+// DEBUG: Get schedules from Firestore (for debugging)
+adsRouter.get('/debug-schedules', async (req, res) => {
+  try {
+    const { accountId } = req.query
+    
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId is required' })
+    }
+    
+    const schedulesSnapshot = await db.collection('schedules')
+      .where('accountId', '==', accountId)
+      .orderBy('createdAt', 'desc')
+      .limit(10)
+      .get()
+    
+    const schedules = schedulesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }))
+    
+    console.log('DEBUG: Schedules from Firestore:')
+    schedules.forEach((s: any) => {
+      console.log(`  ${s.name}: changeValue=${s.changeValue} (type: ${typeof s.changeValue}), changeMode=${s.changeMode}`)
+    })
+    
+    res.json({ schedules })
+  } catch (error: any) {
+    console.error('DEBUG: Failed to fetch schedules:', error?.message)
+    res.status(500).json({
+      error: 'Failed to fetch schedules',
+      details: error?.message
+    })
+  }
+})
+
+// TEST: Get raw orders from Allegro (for debugging)
+adsRouter.get('/test-orders', async (req, res) => {
+  try {
+    const { accountId } = req.query
+    
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId is required' })
+    }
+    
+    const { accessToken } = await getAccountToken(accountId as string)
+    
+    console.log(`TEST: Fetching raw orders for account ${accountId}`)
+    
+    const response = await axios.get(
+      `${ALLEGRO_API_URL}/order/checkout-forms`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.allegro.public.v1+json'
+        },
+        params: {
+          offset: 0,
+          limit: 10
+        }
+      }
+    )
+    
+    console.log(`TEST: Got response, count: ${response.data.count}, totalCount: ${response.data.totalCount}`)
+    console.log(`TEST: Number of orders: ${response.data.checkoutForms?.length || 0}`)
+    
+    res.json({
+      count: response.data.count,
+      totalCount: response.data.totalCount,
+      ordersReturned: response.data.checkoutForms?.length || 0,
+      firstOrder: response.data.checkoutForms?.[0] || null
+    })
+  } catch (error: any) {
+    console.error('TEST: Failed to fetch orders:', error?.response?.data || error?.message)
+    res.status(error?.response?.status || 500).json({
+      error: 'Failed to fetch test orders',
+      details: error?.response?.data || error?.message
+    })
+  }
+})
+
+// Get dashboard statistics (orders and sales data)
+adsRouter.get('/dashboard-stats', async (req, res) => {
+  try {
+    const { accountId, dateFrom, dateTo } = req.query
+    
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId is required' })
+    }
+    
+    const { accessToken } = await getAccountToken(accountId as string)
+    
+    // Use provided dates or default to last 7 days
+    let from: string | undefined
+    let to: string | undefined
+    
+    if (dateFrom && dateTo) {
+      from = dateFrom as string
+      to = dateTo as string
+      console.log(`Fetching dashboard stats for account ${accountId}: ${from} to ${to}`)
+    } else {
+      const now = new Date()
+      const defaultDateTo = new Date(now)
+      const defaultDateFrom = new Date(defaultDateTo)
+      defaultDateFrom.setDate(defaultDateFrom.getDate() - 7)
+      
+      from = defaultDateFrom.toISOString()
+      to = defaultDateTo.toISOString()
+      console.log(`Fetching dashboard stats for account ${accountId} (default 7 days): ${from} to ${to}`)
+    }
+    
+    // Fetch checkout forms (orders) from Allegro API
+    // https://developer.allegro.pl/documentation/#operation/getListOfOrdersUsingGET
+    let allOrders: any[] = []
+    let offset = 0
+    const limit = 100
+    let hasMore = true
+    
+    while (hasMore) {
+      const params: any = {
+        offset,
+        limit
+      }
+      
+      // Add date filters if provided
+      if (from) {
+        params['boughtAt.gte'] = from
+      }
+      if (to) {
+        params['boughtAt.lte'] = to
+      }
+      
+      console.log('Request params:', params)
+      
+      const response = await axios.get(
+        `${ALLEGRO_API_URL}/order/checkout-forms`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.allegro.public.v1+json'
+          },
+          params
+        }
+      )
+      
+      const orders = response.data.checkoutForms || []
+      allOrders = allOrders.concat(orders)
+      
+      hasMore = orders.length === limit
+      offset += limit
+      
+      console.log(`Fetched ${orders.length} orders, total: ${allOrders.length}`)
+      console.log(`Response count: ${response.data.count}, total available: ${response.data.totalCount}`)
+      
+      // Safety limit
+      if (allOrders.length > 10000) {
+        console.warn('Reached safety limit of 10000 orders')
+        break
+      }
+    }
+    
+    // Log first order to understand structure
+    if (allOrders.length > 0) {
+      console.log('=== SAMPLE ORDER STRUCTURE ===')
+      console.log('First order:', JSON.stringify(allOrders[0], null, 2))
+      console.log('Summary:', allOrders[0].summary)
+      console.log('Line items:', allOrders[0].lineItems)
+    }
+    
+    // Calculate statistics
+    let salesTotal = 0
+    let ordersTotal = allOrders.length
+    const productSales: { [key: string]: { name: string; sales: number; orders: number; offerId: string } } = {}
+    
+    allOrders.forEach((order, idx) => {
+      // Sum up total sales
+      if (order.summary?.totalToPay?.amount) {
+        const orderValue = parseFloat(order.summary.totalToPay.amount)
+        salesTotal += orderValue
+        if (idx < 3) {
+          console.log(`Order ${idx + 1} value: ${orderValue} ${order.summary.totalToPay.currency}`)
+        }
+      } else {
+        console.warn(`Order ${idx + 1} missing totalToPay amount`)
+      }
+      
+      // Track product sales
+      if (order.lineItems) {
+        order.lineItems.forEach((item: any) => {
+          const offerId = item.offer?.id
+          const offerName = item.offer?.name || 'Unknown'
+          const itemPrice = parseFloat(item.price?.amount || 0)
+          const quantity = item.quantity || 1
+          const itemTotal = itemPrice * quantity
+          
+          if (idx < 3) {
+            console.log(`  - Product: ${offerName}, Price: ${itemPrice}, Qty: ${quantity}, Total: ${itemTotal}`)
+          }
+          
+          if (offerId) {
+            if (!productSales[offerId]) {
+              productSales[offerId] = {
+                name: offerName,
+                sales: 0,
+                orders: 0,
+                offerId
+              }
+            }
+            productSales[offerId].sales += itemTotal
+            productSales[offerId].orders += quantity
+          }
+        })
+      }
+    })
+    
+    // Sort products by sales and get top 10
+    const topProducts = Object.values(productSales)
+      .sort((a, b) => b.sales - a.sales)
+      .slice(0, 10)
+    
+    console.log(`Calculated stats: ${ordersTotal} orders, ${salesTotal.toFixed(2)} PLN total sales`)
+    
+    res.json({
+      salesTotal,
+      ordersTotal,
+      topProducts,
+      dateFrom: from,
+      dateTo: to,
+      ordersProcessed: allOrders.length
+    })
+  } catch (error: any) {
+    console.error('Failed to fetch dashboard statistics:', error?.response?.data || error?.message)
+    res.status(error?.response?.status || 500).json({
+      error: 'Failed to fetch dashboard statistics',
+      details: error?.response?.data || error?.message
+    })
+  }
+})
+

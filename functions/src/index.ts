@@ -5,7 +5,7 @@ import * as admin from "firebase-admin";
 import * as dotenv from "dotenv";
 import {Schedule} from "./schedules/types";
 import {shouldExecuteNow} from "./schedules/time-checker";
-import {executeScheduleAction} from "./schedules/executor";
+import {executeScheduleAction, restoreOriginalValues} from "./schedules/executor";
 
 // Load environment variables (for local development)
 dotenv.config();
@@ -98,6 +98,46 @@ export const scheduleExecutor = onSchedule({
       } else {
         skipped++;
         console.log(`Schedule skipped: ${schedule.name} (not matching time/day)`);
+
+        // Check if schedule should restore values (outside time window)
+        if (schedule.restoreAfterEnd &&
+            schedule.savedValues &&
+            schedule.timeMode === "specific" &&
+            schedule.endTime) {
+          const currentTime = formatTimeWarsaw(now);
+
+          // If current time is past end time, restore values
+          if (currentTime > schedule.endTime) {
+            // Check if not already restored today
+            if (!schedule.lastRestored ||
+                new Date(schedule.lastRestored.toMillis()).toDateString() !==
+                now.toDateString()) {
+              console.log(`Restoring values for schedule: ${schedule.name}`);
+
+              try {
+                const result = await restoreOriginalValues(schedule);
+
+                // Update schedule with restore results
+                const nowTs = admin.firestore.Timestamp.now();
+                await doc.ref.update({
+                  lastRestored: nowTs,
+                  savedValues: admin.firestore.FieldValue.delete(), // Clear saved values
+                  executionLog: admin.firestore.FieldValue.arrayUnion({
+                    timestamp: nowTs,
+                    success: result.success,
+                    message: `[RESTORE] ${result.message}`,
+                    affectedAdGroupIds: result.affectedAdGroupIds,
+                    error: result.error,
+                  }),
+                });
+
+                console.log(`Restore completed: ${result.message}`);
+              } catch (error: any) {
+                console.error(`Failed to restore schedule ${schedule.id}:`, error);
+              }
+            }
+          }
+        }
       }
     }
 
@@ -107,6 +147,28 @@ export const scheduleExecutor = onSchedule({
     throw error;
   }
 });
+
+/**
+ * Format Date to HH:MM string in Warsaw timezone
+ */
+function formatTimeWarsaw(date: Date): string {
+  // Use proper timezone conversion with Intl API
+  const timeStr = date.toLocaleString("en-US", {
+    timeZone: "Europe/Warsaw",
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  // Extract HH:MM from the formatted string
+  const match = timeStr.match(/(\d{2}):(\d{2})/);
+  if (match) {
+    return `${match[1]}:${match[2]}`;
+  }
+
+  // Fallback (should never happen)
+  return "00:00";
+}
 
 /**
  * HTTP endpoint to manually trigger schedule execution (for testing)

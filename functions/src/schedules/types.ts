@@ -20,6 +20,17 @@ export interface Schedule {
   // Grupy reklam (puste = wszystkie grupy)
   adGroupIds: string[]
 
+  // Restore functionality
+  restoreAfterEnd?: boolean // Czy przywrócić wartość po zakończeniu
+  savedValues?: { // Zapisane oryginalne wartości per ad group
+    [adGroupId: string]: {
+      cpc?: string
+      budget?: string
+      status?: string
+    }
+  }
+  lastRestored?: FirebaseFirestore.Timestamp // Kiedy ostatnio przywrócono
+
   // Metadata
   createdAt: FirebaseFirestore.Timestamp
   updatedAt: FirebaseFirestore.Timestamp

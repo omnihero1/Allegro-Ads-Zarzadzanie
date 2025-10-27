@@ -8,6 +8,7 @@ import {
   type Schedule 
 } from '../services/schedules'
 import { getAccounts } from '../services/allegroAuth'
+import { getAdsClients, getAdGroups } from '../services/allegroCampaigns'
 import { ScheduleModal } from '../components/ScheduleModal'
 import './Schedules.css'
 
@@ -19,6 +20,10 @@ export function Schedules() {
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null)
+  
+  // Cache for client and ad group names
+  const [adsClientsCache, setAdsClientsCache] = useState<Map<string, string>>(new Map())
+  const [adGroupsCache, setAdGroupsCache] = useState<Map<string, string>>(new Map())
 
   // Load accounts on mount
   useEffect(() => {
@@ -31,6 +36,16 @@ export function Schedules() {
       loadSchedules()
     }
   }, [selectedAccount])
+  
+  // Debug: Log schedules when they change
+  useEffect(() => {
+    if (schedules.length > 0) {
+      console.log('=== SCHEDULES DEBUG ===')
+      schedules.forEach(s => {
+        console.log(`${s.name}: changeValue=${s.changeValue} (type: ${typeof s.changeValue}), changeMode=${s.changeMode}`)
+      })
+    }
+  }, [schedules])
 
   async function loadAccounts() {
     try {
@@ -56,11 +71,54 @@ export function Schedules() {
     try {
       const data = await getSchedules(selectedAccount)
       setSchedules(data)
+      
+      // Load names for clients and ad groups
+      await loadNamesForSchedules(data)
     } catch (err: any) {
       console.error('Failed to load schedules:', err)
       setError('Nie udało się załadować harmonogramów')
     } finally {
       setLoading(false)
+    }
+  }
+  
+  async function loadNamesForSchedules(schedules: Schedule[]) {
+    const clientsMap = new Map<string, string>()
+    const adGroupsMap = new Map<string, string>()
+    
+    // Get unique adsClientIds
+    const uniqueClientIds = [...new Set(schedules.map(s => s.adsClientId))]
+    
+    try {
+      // Load ads clients names
+      const adsClientsData = await getAdsClients(selectedAccount)
+      adsClientsData.clients?.forEach((client: any) => {
+        clientsMap.set(client.id, client.name)
+      })
+      
+      // Load ad groups for each unique client
+      for (const clientId of uniqueClientIds) {
+        try {
+          const adGroupsData = await getAdGroups(
+            selectedAccount,
+            clientId,
+            '',  // no specific campaign
+            'allegro-pl',
+            ['ACTIVE', 'PAUSED']
+          )
+          
+          adGroupsData.adGroups?.forEach((ag: any) => {
+            adGroupsMap.set(ag.id, ag.name)
+          })
+        } catch (err) {
+          console.error(`Failed to load ad groups for client ${clientId}:`, err)
+        }
+      }
+      
+      setAdsClientsCache(clientsMap)
+      setAdGroupsCache(adGroupsMap)
+    } catch (err) {
+      console.error('Failed to load names:', err)
     }
   }
 
@@ -159,11 +217,12 @@ export function Schedules() {
               <tr>
                 <th>Nazwa</th>
                 <th>Status</th>
+                <th>Klient</th>
+                <th>Grupy reklam</th>
                 <th>Czas działania</th>
                 <th>Dni tygodnia</th>
                 <th>Akcja</th>
                 <th>Wartość</th>
-                <th>Grupy reklam</th>
                 <th>Ostatnie wykonanie</th>
                 <th>Akcje</th>
               </tr>
@@ -182,6 +241,26 @@ export function Schedules() {
                     >
                       {schedule.isActive ? '🟢 Aktywny' : '🔴 Nieaktywny'}
                     </button>
+                  </td>
+                  <td>
+                    {adsClientsCache.get(schedule.adsClientId) || schedule.adsClientId}
+                  </td>
+                  <td>
+                    {schedule.adGroupIds.length === 0 ? (
+                      <span className="text-secondary">Wszystkie</span>
+                    ) : (
+                      <div style={{ maxWidth: '200px' }}>
+                        {schedule.adGroupIds.map((agId, idx) => (
+                          <div key={agId} style={{ fontSize: '0.9em' }}>
+                            {idx < 3 ? (
+                              adGroupsCache.get(agId) || agId
+                            ) : idx === 3 ? (
+                              `+ ${schedule.adGroupIds.length - 3} więcej`
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td>
                     {schedule.timeMode === 'allDay' ? (
@@ -209,13 +288,6 @@ export function Schedules() {
                         {schedule.changeValue > 0 ? '+' : ''}{schedule.changeValue}
                         {schedule.changeMode === 'percentage' ? '%' : ' PLN'}
                       </>
-                    )}
-                  </td>
-                  <td>
-                    {schedule.adGroupIds.length === 0 ? (
-                      'Wszystkie'
-                    ) : (
-                      `${schedule.adGroupIds.length} wybranych`
                     )}
                   </td>
                   <td>

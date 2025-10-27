@@ -44,6 +44,7 @@ export function ScheduleModal({ schedule, accountId, onClose, onSave }: Schedule
   const [changeValue, setChangeValue] = useState(0)
   const [statusValue, setStatusValue] = useState<'ACTIVE' | 'PAUSED'>('ACTIVE')
   const [selectedAdGroupIds, setSelectedAdGroupIds] = useState<string[]>([])
+  const [restoreAfterEnd, setRestoreAfterEnd] = useState(false)
 
   // Data loading state
   const [adsClients, setAdsClients] = useState<any[]>([])
@@ -70,6 +71,7 @@ export function ScheduleModal({ schedule, accountId, onClose, onSave }: Schedule
       setStatusValue(schedule.statusValue || 'ACTIVE')
       setSelectedAdGroupIds(schedule.adGroupIds)
       setSelectedClient(schedule.adsClientId)
+      setRestoreAfterEnd(schedule.restoreAfterEnd || false)
     }
   }, [schedule])
 
@@ -220,7 +222,8 @@ export function ScheduleModal({ schedule, accountId, onClose, onSave }: Schedule
         actionType,
         changeMode,
         changeValue,
-        adGroupIds: selectedAdGroupIds
+        adGroupIds: selectedAdGroupIds,
+        restoreAfterEnd
       }
       
       // Only add fields if they have values
@@ -291,6 +294,22 @@ export function ScheduleModal({ schedule, accountId, onClose, onSave }: Schedule
                   Aktywny
                 </label>
               </div>
+              
+              {timeMode === 'specific' && actionType !== 'status' && (
+                <div className="form-group checkbox">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={restoreAfterEnd}
+                      onChange={(e) => setRestoreAfterEnd(e.target.checked)}
+                    />
+                    Przywróć wartość po zakończeniu
+                  </label>
+                  <small className="help-text" style={{ display: 'block', marginTop: '4px', marginLeft: '24px' }}>
+                    Po zakończeniu harmonogramu (o {endTime}) przywróć oryginalną wartość sprzed wykonania
+                  </small>
+                </div>
+              )}
             </div>
             
             {/* Client Selection */}
@@ -436,9 +455,21 @@ export function ScheduleModal({ schedule, accountId, onClose, onSave }: Schedule
                     <input
                       type="number"
                       value={changeValue}
-                      onChange={(e) => setChangeValue(parseFloat(e.target.value))}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        // Handle empty input or invalid number
+                        if (val === '' || val === '-') {
+                          setChangeValue(0)
+                        } else {
+                          const parsed = parseFloat(val)
+                          if (!isNaN(parsed)) {
+                            setChangeValue(parsed)
+                          }
+                        }
+                      }}
                       step={changeMode === 'percentage' ? '1' : '0.01'}
                       required
+                      onWheel={(e) => e.currentTarget.blur()} // Prevent scroll wheel from changing value
                     />
                     <small className="help-text">
                       {changeMode === 'percentage' 
@@ -446,6 +477,9 @@ export function ScheduleModal({ schedule, accountId, onClose, onSave }: Schedule
                         : 'Wartości dodatnie zwiększą, ujemne zmniejszą (np. 5.50 = +5.50 PLN)'
                       }
                     </small>
+                    <div style={{ marginTop: '8px', padding: '8px', background: '#f0f0f0', borderRadius: '4px', fontSize: '14px' }}>
+                      <strong>Zapisana wartość:</strong> {changeValue > 0 ? '+' : ''}{changeValue}{changeMode === 'percentage' ? '%' : ' PLN'}
+                    </div>
                   </div>
                 </>
               )}
