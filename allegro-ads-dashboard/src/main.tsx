@@ -8,12 +8,22 @@ import { Integrations } from './routes/Integrations'
 import { AllegroCallback } from './routes/AllegroCallback'
 import { AllegroAds } from './routes/AllegroAds'
 import { Schedules } from './routes/Schedules'
+import { Login } from './routes/Login'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { ProtectedRoute } from './components/ProtectedRoute'
 
 const router = createBrowserRouter([
   {
+    path: '/login',
+    element: <Login />,
+  },
+  {
     path: '/',
-    element: <RootLayout />,
+    element: (
+      <ProtectedRoute>
+        <RootLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <Dashboard /> },
       { path: 'allegro-ads', element: <AllegroAds /> },
