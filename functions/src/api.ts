@@ -1,7 +1,6 @@
 import * as functions from "firebase-functions/v2";
 import {defineSecret} from "firebase-functions/params";
 import express from "express";
-import cors from "cors";
 import * as admin from "firebase-admin";
 import axios from "axios";
 
@@ -18,16 +17,28 @@ const allowedOrigins = [
   "https://allegro-ads-management-fe724.firebaseapp.com",
 ];
 
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
+// Custom CORS middleware - set headers on EVERY response
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (origin && allowedOrigins.includes(origin)) {
+    // Set CORS headers
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Vary", "Origin");
+
+    // Handle preflight
+    if (req.method === "OPTIONS") {
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+      res.setHeader("Access-Control-Max-Age", "86400");
+      res.status(204).end();
+      return;
     }
-  },
-  credentials: true,
-}));
+  }
+
+  next();
+});
 
 app.use(express.json());
 
