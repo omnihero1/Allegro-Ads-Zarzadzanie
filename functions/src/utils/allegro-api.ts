@@ -15,7 +15,7 @@ interface AllegroTokens {
  */
 export async function getAccountToken(accountId: string): Promise<string> {
   const db = admin.firestore();
-  const accountDoc = await db.collection("accounts").doc(accountId).get();
+  const accountDoc = await db.collection("allegroAccounts").doc(accountId).get();
 
   if (!accountDoc.exists) {
     throw new Error(`Account ${accountId} not found`);

@@ -294,22 +294,6 @@ export function ScheduleModal({ schedule, accountId, onClose, onSave }: Schedule
                   Aktywny
                 </label>
               </div>
-              
-              {timeMode === 'specific' && actionType !== 'status' && (
-                <div className="form-group checkbox">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={restoreAfterEnd}
-                      onChange={(e) => setRestoreAfterEnd(e.target.checked)}
-                    />
-                    Przywróć wartość po zakończeniu
-                  </label>
-                  <small className="help-text" style={{ display: 'block', marginTop: '4px', marginLeft: '24px' }}>
-                    Po zakończeniu harmonogramu (o {endTime}) przywróć oryginalną wartość sprzed wykonania
-                  </small>
-                </div>
-              )}
             </div>
             
             {/* Client Selection */}
@@ -361,26 +345,44 @@ export function ScheduleModal({ schedule, accountId, onClose, onSave }: Schedule
               </div>
               
               {timeMode === 'specific' && (
-                <div className="time-inputs">
-                  <div className="form-group">
-                    <label>Od</label>
-                    <input
-                      type="time"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                      required
-                    />
+                <>
+                  <div className="time-inputs">
+                    <div className="form-group">
+                      <label>Od</label>
+                      <input
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Do</label>
+                      <input
+                        type="time"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        required
+                      />
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label>Do</label>
-                    <input
-                      type="time"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
+                  
+                  {actionType !== 'status' && (
+                    <div className="form-group checkbox" style={{ marginTop: '12px' }}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={restoreAfterEnd}
+                          onChange={(e) => setRestoreAfterEnd(e.target.checked)}
+                        />
+                        Przywróć wartość po zakończeniu
+                      </label>
+                      <small className="help-text" style={{ display: 'block', marginTop: '4px', marginLeft: '24px' }}>
+                        Po zakończeniu harmonogramu (o {endTime}) przywróć oryginalną wartość sprzed wykonania
+                      </small>
+                    </div>
+                  )}
+                </>
               )}
             </div>
             

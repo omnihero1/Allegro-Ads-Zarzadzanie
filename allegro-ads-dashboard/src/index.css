@@ -3,17 +3,17 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
+  color-scheme: dark;
   
-  /* Light mode colors (default) */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f5f5f5;
-  --bg-tertiary: #f8f9fa;
-  --text-primary: #213547;
-  --text-secondary: #555;
-  --text-tertiary: #777;
-  --border-color: #ddd;
-  --border-light: #f0f0f0;
+  /* Dark mode colors (permanent) */
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #242424;
+  --bg-tertiary: #2d2d2d;
+  --text-primary: rgba(255, 255, 255, 0.87);
+  --text-secondary: rgba(255, 255, 255, 0.70);
+  --text-tertiary: rgba(255, 255, 255, 0.50);
+  --border-color: #404040;
+  --border-light: #333;
   
   color: var(--text-primary);
   background-color: var(--bg-primary);
@@ -22,23 +22,6 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Dark mode colors */
-    --bg-primary: #1a1a1a;
-    --bg-secondary: #242424;
-    --bg-tertiary: #2d2d2d;
-    --text-primary: rgba(255, 255, 255, 0.87);
-    --text-secondary: rgba(255, 255, 255, 0.70);
-    --text-tertiary: rgba(255, 255, 255, 0.50);
-    --border-color: #404040;
-    --border-light: #333;
-    
-    color: var(--text-primary);
-    background-color: var(--bg-primary);
-  }
 }
 
 a {

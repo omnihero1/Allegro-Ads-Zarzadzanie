@@ -20,6 +20,62 @@ admin.initializeApp();
 // Export API function
 export {api} from "./api";
 
+// Orders sync scheduler - runs every hour
+import {syncOrdersForAccount} from "./orders/fetcher";
+
+// Advertising stats sync scheduler
+import {autoSyncAdvertisingStats} from "./advertising-stats/scheduler";
+
+export const ordersSyncScheduler = onSchedule(
+  {
+    schedule: "0 * * * *", // Every hour at minute 0
+    timeZone: "Europe/Warsaw",
+    memory: "512MiB",
+    timeoutSeconds: 540, // 9 minutes
+  },
+  async () => {
+    console.log("Starting hourly orders sync...");
+
+    try {
+      // Get all active Allegro accounts
+      const accountsSnapshot = await admin.firestore()
+        .collection("allegroAccounts")
+        .where("status", "==", "active")
+        .get();
+
+      const accounts = accountsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      console.log(`Found ${accounts.length} active accounts to sync`);
+
+      // Sync orders for each account (in parallel)
+      const syncPromises = accounts.map((account) =>
+        syncOrdersForAccount(account.id, 24) // Last 24 hours
+          .catch((error) => {
+            console.error(
+              `Failed to sync orders for account ${account.id}:`,
+              error
+            );
+            return null;
+          })
+      );
+
+      const results = await Promise.all(syncPromises);
+
+      const successful = results.filter((r) => r?.status === "success").length;
+      const failed = results.filter((r) => r?.status === "error").length;
+
+      console.log(
+        `Orders sync completed: ${successful} successful, ${failed} failed`
+      );
+    } catch (error: any) {
+      console.error("Orders sync scheduler error:", error);
+    }
+  }
+);
+
 /**
  * Schedule Executor - runs every 5 minutes
  * Checks active schedules and executes actions if time matches
@@ -227,3 +283,82 @@ export const executeScheduleManually = onRequest({
     });
   }
 });
+
+/**
+ * Advertising Stats Sync Scheduler - runs daily at 3 AM
+ * Automatically syncs yesterday's advertising statistics for all agency clients
+ */
+export const adStatsSyncScheduler = onSchedule(
+  {
+    schedule: "0 3 * * *", // Every day at 3:00 AM
+    timeZone: "Europe/Warsaw",
+    memory: "512MiB",
+    timeoutSeconds: 540, // 9 minutes
+  },
+  async () => {
+    console.log("Starting daily advertising stats sync...");
+
+    try {
+      await autoSyncAdvertisingStats();
+      console.log("✅ Daily advertising stats sync completed successfully");
+    } catch (error: any) {
+      console.error("❌ Daily advertising stats sync failed:", error);
+    }
+  }
+);
+
+/**
+ * Offers Sync Scheduler - runs daily at 3:30 AM
+ * Automatically syncs all offers for all active accounts
+ */
+import {syncOffersForAccount} from "./offers/fetcher";
+
+export const offersSyncScheduler = onSchedule(
+  {
+    schedule: "30 3 * * *", // Every day at 3:30 AM
+    timeZone: "Europe/Warsaw",
+    memory: "512MiB",
+    timeoutSeconds: 540, // 9 minutes
+  },
+  async () => {
+    console.log("Starting daily offers sync...");
+
+    try {
+      // Get all active Allegro accounts
+      const accountsSnapshot = await admin.firestore()
+        .collection("allegroAccounts")
+        .where("status", "==", "active")
+        .get();
+
+      const accounts = accountsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      console.log(`Found ${accounts.length} active accounts to sync offers`);
+
+      // Sync offers for each account (in parallel)
+      const syncPromises = accounts.map((account) =>
+        syncOffersForAccount(account.id)
+          .catch((error) => {
+            console.error(
+              `Failed to sync offers for account ${account.id}:`,
+              error
+            );
+            return null;
+          })
+      );
+
+      const results = await Promise.all(syncPromises);
+
+      const successful = results.filter((r) => r?.status === "success").length;
+      const failed = results.filter((r) => r?.status === "error").length;
+
+      console.log(
+        `Offers sync completed: ${successful} successful, ${failed} failed`
+      );
+    } catch (error: any) {
+      console.error("Offers sync scheduler error:", error);
+    }
+  }
+);

@@ -167,12 +167,32 @@ export function AllegroAds() {
     }
   }, [selectedAccount])
 
+  // Auto-load data when client is selected
+  useEffect(() => {
+    if (selectedAccount && selectedClient) {
+      console.log('Auto-loading data for account:', selectedAccount, 'client:', selectedClient)
+      loadData()
+    }
+  }, [selectedAccount, selectedClient])
+
   async function loadAccounts() {
     try {
       const data = await getAccounts()
       setAccounts(data.accounts || [])
       if (data.accounts && data.accounts.length > 0) {
-        setSelectedAccount(data.accounts[0].id)
+        // Try to find "Omnihero" account first
+        const omniheroAccount = data.accounts.find((acc: Account) => 
+          acc.name?.toLowerCase().includes('omnihero')
+        )
+        
+        if (omniheroAccount) {
+          console.log('Auto-selecting Omnihero account:', omniheroAccount.name)
+          setSelectedAccount(omniheroAccount.id)
+        } else {
+          // Fallback to first account if Omnihero not found
+          console.log('Omnihero account not found, using first account')
+          setSelectedAccount(data.accounts[0].id)
+        }
       }
     } catch (err: any) {
       console.error('Failed to load accounts:', err)
@@ -195,8 +215,20 @@ export function AllegroAds() {
       
       setAdsClients(data.clients || [])
       if (data.clients && data.clients.length > 0) {
-        console.log('Auto-selecting first client:', data.clients[0])
-        setSelectedClient(data.clients[0].id)
+        // Try to find "AS_Nespresso" or similar client first
+        const nespressoClient = data.clients.find((client: AdsClient) =>
+          client.name?.toLowerCase().includes('nespresso') ||
+          client.name?.toLowerCase().includes('as_nespresso')
+        )
+        
+        if (nespressoClient) {
+          console.log('Auto-selecting AS_Nespresso client:', nespressoClient.name)
+          setSelectedClient(nespressoClient.id)
+        } else {
+          // Fallback to first client if AS_Nespresso not found
+          console.log('AS_Nespresso client not found, using first client:', data.clients[0])
+          setSelectedClient(data.clients[0].id)
+        }
       } else {
         console.warn('No clients loaded! Setting selectedClient to empty')
         setSelectedClient('')

@@ -906,3 +906,39 @@ adsRouter.get('/dashboard-stats', async (req, res) => {
   }
 })
 
+// ===== ADVERTISING STATISTICS ENDPOINTS =====
+
+// Get advertising agency clients
+adsRouter.get('/advertising-agency/clients', async (req, res) => {
+  try {
+    const { accountId } = req.query
+    
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId is required' })
+    }
+
+    const { accessToken } = await getAccountToken(accountId as string)
+
+    const response = await axios.get(
+      `${ALLEGRO_API_URL}/advertising-agencies/clients`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.allegro.public.v1+json',
+        },
+      }
+    )
+
+    res.json({
+      clients: response.data.clients || [],
+      count: response.data.clients?.length || 0,
+    })
+  } catch (error: any) {
+    console.error('Failed to fetch agency clients:', error?.response?.data || error?.message)
+    res.status(error?.response?.status || 500).json({
+      error: 'Failed to fetch agency clients',
+      details: error?.response?.data || error?.message
+    })
+  }
+})
+

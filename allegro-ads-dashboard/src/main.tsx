@@ -8,6 +8,8 @@ import { Integrations } from './routes/Integrations'
 import { AllegroCallback } from './routes/AllegroCallback'
 import { AllegroAds } from './routes/AllegroAds'
 import { Schedules } from './routes/Schedules'
+import { Administration } from './routes/Administration'
+import { Offers } from './routes/Offers'
 import { Login } from './routes/Login'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -27,9 +29,11 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       { path: 'allegro-ads', element: <AllegroAds /> },
+      { path: 'offers', element: <Offers /> },
       { path: 'schedules', element: <Schedules /> },
       { path: 'integrations', element: <Integrations /> },
       { path: 'integrations/allegro/callback', element: <AllegroCallback /> },
+      { path: 'administration', element: <Administration /> },
     ],
   },
 ])

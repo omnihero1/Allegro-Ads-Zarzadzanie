@@ -4,6 +4,8 @@ import axios from 'axios'
 // We'll call a backend endpoint to generate the PKCE and auth URL and to exchange tokens.
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || ''
+console.log('🔧 allegroAuth.ts API_BASE:', API_BASE)
+console.log('🔧 import.meta.env.VITE_BACKEND_URL:', import.meta.env.VITE_BACKEND_URL)
 const api = axios.create({ baseURL: API_BASE, withCredentials: true })
 
 export async function startAllegroOAuth(): Promise<string> {

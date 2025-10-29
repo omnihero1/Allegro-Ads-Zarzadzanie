@@ -52,9 +52,12 @@ export function Schedules() {
       const data = await getAccounts()
       setAccounts(data.accounts || [])
       
-      // Auto-select first account
+      // Auto-select Omnihero account, or first account if not found
       if (data.accounts && data.accounts.length > 0) {
-        setSelectedAccount(data.accounts[0].id)
+        const omniheroAccount = data.accounts.find((acc: any) => 
+          acc.name?.toLowerCase().includes('omnihero')
+        )
+        setSelectedAccount(omniheroAccount?.id || data.accounts[0].id)
       }
     } catch (err: any) {
       console.error('Failed to load accounts:', err)

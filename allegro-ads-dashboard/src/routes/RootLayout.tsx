@@ -2,7 +2,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { signOut, onAuthChange } from '../services/auth'
 import type { User } from 'firebase/auth'
-import omniheroLogo from '../assets/omnihero-logo.png'
+import omniheroLogo from '../assets/omnihero-logo.svg'
 import './layout.css'
 
 export function RootLayout() {
@@ -32,8 +32,49 @@ export function RootLayout() {
           </Link>
         </div>
         
+        <nav className="nav">
+          <NavLink to="/" end className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
+            Dashboard
+          </NavLink>
+
+          <div className="nav-category">Sprzedaż</div>
+          <NavLink to="/sales-summary" className={({ isActive }) => isActive ? 'nav-item nav-subitem active' : 'nav-item nav-subitem'}>
+            Podsumowanie
+          </NavLink>
+          <NavLink to="/products" className={({ isActive }) => isActive ? 'nav-item nav-subitem active' : 'nav-item nav-subitem'}>
+            Produkty
+          </NavLink>
+          <NavLink to="/offers" className={({ isActive }) => isActive ? 'nav-item nav-subitem active' : 'nav-item nav-subitem'}>
+            Oferty
+          </NavLink>
+          <NavLink to="/profitability" className={({ isActive }) => isActive ? 'nav-item nav-subitem active' : 'nav-item nav-subitem'}>
+            Rentowność
+          </NavLink>
+
+          <div className="nav-category">Allegro Ads</div>
+          <NavLink to="/ads-stats" className={({ isActive }) => isActive ? 'nav-item nav-subitem active' : 'nav-item nav-subitem'}>
+            Statystyki
+          </NavLink>
+          <NavLink to="/allegro-ads" className={({ isActive }) => isActive ? 'nav-item nav-subitem active' : 'nav-item nav-subitem'}>
+            Edycja
+          </NavLink>
+          <NavLink to="/schedules" className={({ isActive }) => isActive ? 'nav-item nav-subitem active' : 'nav-item nav-subitem'}>
+            Harmonogram
+          </NavLink>
+
+          <div className="nav-category">Analizy</div>
+
+          <div className="nav-category">Adminka</div>
+          <NavLink to="/integrations" className={({ isActive }) => isActive ? 'nav-item nav-subitem active' : 'nav-item nav-subitem'}>
+            Integracje
+          </NavLink>
+          <NavLink to="/administration" className={({ isActive }) => isActive ? 'nav-item nav-subitem active' : 'nav-item nav-subitem'}>
+            Administracja
+          </NavLink>
+        </nav>
+
         {user && (
-          <div className="sidebar-user">
+          <div className="sidebar-user-bottom">
             <div className="user-info">
               <div className="user-avatar">
                 {user.photoURL ? (
@@ -54,21 +95,6 @@ export function RootLayout() {
             </button>
           </div>
         )}
-        
-        <nav className="nav">
-          <NavLink to="/" end className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-            Dashboard
-          </NavLink>
-          <NavLink to="/allegro-ads" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-            Allegro Ads
-          </NavLink>
-          <NavLink to="/schedules" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-            Harmonogramy
-          </NavLink>
-          <NavLink to="/integrations" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-            Integracje
-          </NavLink>
-        </nav>
       </aside>
       <main className="main">
         <Outlet />
