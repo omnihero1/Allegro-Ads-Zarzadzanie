@@ -77,6 +77,22 @@ export function Administration() {
     error?: string
   } | null>(null)
 
+  // Billing sync state
+  const [billingAccountId, setBillingAccountId] = useState<string>('')
+  const [billingDateFrom, setBillingDateFrom] = useState<string>('')
+  const [billingDateTo, setBillingDateTo] = useState<string>('')
+  const [billingLoading, setBillingLoading] = useState(false)
+  const [billingError, setBillingError] = useState<string | null>(null)
+  const [billingSyncResult, setBillingSyncResult] = useState<{
+    accountId: string
+    status: string
+    entriesCount: number
+    totalCost?: number
+    message: string
+    dateRange?: { from: string; to: string }
+    error?: string
+  } | null>(null)
+
   // Account mapping state
   const [mappings, setMappings] = useState<Array<{
     salesAccountId: string
@@ -113,6 +129,19 @@ export function Administration() {
       loadMappings()
     }
   }, [accounts])
+
+  // Set default billing dates when billing account changes
+  useEffect(() => {
+    if (billingAccountId) {
+      // Set default dates for billing (last 30 days, ending YESTERDAY)
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      const lastMonth = new Date(yesterday)
+      lastMonth.setDate(lastMonth.getDate() - 29) // 30 days total including yesterday
+      setBillingDateFrom(lastMonth.toISOString().split('T')[0])
+      setBillingDateTo(yesterday.toISOString().split('T')[0])
+    }
+  }, [billingAccountId])
 
   async function loadAccounts() {
     try {
@@ -568,6 +597,86 @@ export function Administration() {
     }
   }
 
+  // Handle billing sync
+  async function handleBillingSync() {
+    if (!billingAccountId) {
+      setBillingError('Wybierz konto')
+      return
+    }
+
+    if (!billingDateFrom || !billingDateTo) {
+      setBillingError('Wybierz zakres dat')
+      return
+    }
+
+    // Validate date range
+    const from = new Date(billingDateFrom)
+    const to = new Date(billingDateTo)
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    yesterday.setHours(23, 59, 59, 999)
+    
+    const daysDiff = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24))
+
+    // Check if 'to' date is not in the future
+    if (to > yesterday) {
+      setBillingError('Data "do" nie może być późniejsza niż wczoraj')
+      return
+    }
+
+    if (daysDiff > 365) {
+      setBillingError('Maksymalny zakres to 1 rok (365 dni)')
+      return
+    }
+
+    if (daysDiff < 0) {
+      setBillingError('Data "od" musi być wcześniejsza niż data "do"')
+      return
+    }
+
+    setBillingLoading(true)
+    setBillingError(null)
+    setBillingSyncResult(null)
+
+    try {
+      const response = await fetch(`${API_URL}/billing/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          accountId: billingAccountId,
+          dateFrom: billingDateFrom,
+          dateTo: billingDateTo,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Synchronizacja nie powiodła się')
+      }
+
+      if (data.result) {
+        setBillingSyncResult({
+          accountId: billingAccountId,
+          status: data.result.status,
+          entriesCount: data.result.entriesCount || 0,
+          totalCost: data.result.totalCost,
+          message: data.message || '',
+          dateRange: data.result.dateRange,
+          error: data.result.error,
+        })
+      }
+    } catch (err: any) {
+      console.error('Billing sync error:', err)
+      setBillingError(err.message || 'Nie udało się zsynchronizować danych billingowych')
+    } finally {
+      setBillingLoading(false)
+    }
+  }
+
   const selectedAccount = accounts.find(a => a.id === selectedAccountId)
 
   return (
@@ -1001,6 +1110,136 @@ export function Administration() {
                 </>
               ) : (
                 'Synchronizuj oferty'
+              )}
+            </button>
+          </div>
+        </section>
+
+        {/* Billing Sync Section */}
+        <section className="admin-card">
+          <div className="card-header">
+            <h2>Synchronizacja billingowa</h2>
+            <span className="card-badge">Billing</span>
+          </div>
+
+          <p className="card-description">
+            Pobierz dane billingowe (opłaty, prowizje, koszty) z Allegro API dla wybranego konta i zakresu dat.
+            Dane zostaną zapisane w bazie danych i będą dostępne do analizy.
+          </p>
+
+          <div className="sync-form">
+            <div className="form-group">
+              <label htmlFor="billing-account-select">Konto Allegro</label>
+              <select
+                id="billing-account-select"
+                value={billingAccountId}
+                onChange={(e) => setBillingAccountId(e.target.value)}
+                disabled={billingLoading}
+                className="form-select"
+              >
+                {accounts.length === 0 ? (
+                  <option value="">Brak dostępnych kont</option>
+                ) : (
+                  <>
+                    <option value="">Wybierz konto</option>
+                    {accounts.map(account => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} ({account.email})
+                      </option>
+                    ))}
+                  </>
+                )}
+              </select>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="billing-date-from">Data od</label>
+                <input
+                  type="date"
+                  id="billing-date-from"
+                  value={billingDateFrom}
+                  onChange={(e) => setBillingDateFrom(e.target.value)}
+                  disabled={billingLoading}
+                  className="form-input"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="billing-date-to">Data do</label>
+                <input
+                  type="date"
+                  id="billing-date-to"
+                  value={billingDateTo}
+                  onChange={(e) => setBillingDateTo(e.target.value)}
+                  disabled={billingLoading}
+                  className="form-input"
+                />
+              </div>
+            </div>
+
+            <div className="alert alert-info" style={{ marginTop: '16px' }}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-8H9v6h2V5z"/>
+              </svg>
+              <div>
+                <strong>Uwaga:</strong> Maksymalny zakres to 1 rok (365 dni). Data końcowa nie może być późniejsza niż wczoraj.
+                <br />
+                Dane obejmują: opłaty za wystawienie (LIS), prowizje (COM), koszty promocji (PRO) i inne.
+              </div>
+            </div>
+
+            {billingError && (
+              <div className="alert alert-error">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z"/>
+                </svg>
+                {billingError}
+              </div>
+            )}
+
+            {billingSyncResult && (
+              <div className={`alert ${billingSyncResult.status === 'success' ? 'alert-success' : 'alert-error'}`}>
+                <div className="alert-header">
+                  {billingSyncResult.status === 'success' ? (
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm-1 11l-3-3 1.5-1.5L9 10l4.5-4.5L15 7l-6 6z"/>
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z"/>
+                    </svg>
+                  )}
+                  <strong>{billingSyncResult.message}</strong>
+                </div>
+                <div className="alert-details">
+                  <p>Pobrano rekordów billingowych: <strong>{billingSyncResult.entriesCount}</strong></p>
+                  {billingSyncResult.totalCost !== undefined && (
+                    <p>Łączny koszt: <strong>{billingSyncResult.totalCost.toFixed(2)} PLN</strong></p>
+                  )}
+                  {billingSyncResult.dateRange && (
+                    <p>
+                      Zakres: <strong>{billingSyncResult.dateRange.from}</strong> - <strong>{billingSyncResult.dateRange.to}</strong>
+                    </p>
+                  )}
+                  {billingSyncResult.error && (
+                    <p className="error-details">Błąd: {billingSyncResult.error}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <button
+              className="btn btn-primary btn-large"
+              onClick={handleBillingSync}
+              disabled={billingLoading || !billingAccountId || !billingDateFrom || !billingDateTo}
+            >
+              {billingLoading ? (
+                <>
+                  <span className="spinner"></span>
+                  Synchronizacja w toku...
+                </>
+              ) : (
+                'Uruchom synchronizację'
               )}
             </button>
           </div>

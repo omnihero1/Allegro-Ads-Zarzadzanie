@@ -7,6 +7,7 @@ import {ordersRouter} from "./routes/orders";
 import {adminRouter} from "./routes/admin";
 import {advertisingStatsRouter} from "./routes/advertising-stats";
 import {accountMappingRouter} from "./routes/account-mapping";
+import {billingRouter} from "./routes/billing";
 
 // Define secrets
 const allegroClientId = defineSecret("ALLEGRO_CLIENT_ID");
@@ -66,6 +67,7 @@ app.use("/orders", ordersRouter);
 app.use("/admin", adminRouter);
 app.use("/advertising-stats", advertisingStatsRouter);
 app.use("/account-mapping", accountMappingRouter);
+app.use("/billing", billingRouter);
 
 // Export as Firebase Function - DISABLE built-in CORS, we handle it ourselves
 export const api = functions.https.onRequest(

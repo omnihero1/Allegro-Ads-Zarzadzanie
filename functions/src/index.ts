@@ -26,6 +26,9 @@ import {syncOrdersForAccount} from "./orders/fetcher";
 // Advertising stats sync scheduler
 import {autoSyncAdvertisingStats} from "./advertising-stats/scheduler";
 
+// Billing sync scheduler
+import {autoSyncBilling} from "./billing/scheduler";
+
 export const ordersSyncScheduler = onSchedule(
   {
     schedule: "0 * * * *", // Every hour at minute 0
@@ -359,6 +362,26 @@ export const offersSyncScheduler = onSchedule(
       );
     } catch (error: any) {
       console.error("Offers sync scheduler error:", error);
+    }
+  }
+);
+
+// Billing sync scheduler - runs every day at 4:00 AM
+export const billingSyncScheduler = onSchedule(
+  {
+    schedule: "0 4 * * *", // Every day at 4:00 AM (after orders, ads, offers)
+    timeZone: "Europe/Warsaw",
+    memory: "512MiB",
+    timeoutSeconds: 540, // 9 minutes
+  },
+  async () => {
+    console.log("Starting daily billing sync...");
+
+    try {
+      await autoSyncBilling();
+      console.log("✅ Daily billing sync completed successfully");
+    } catch (error: any) {
+      console.error("❌ Daily billing sync failed:", error);
     }
   }
 );
